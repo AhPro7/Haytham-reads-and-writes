@@ -1,6 +1,6 @@
 # Automatic Speech Recognition and Text-to-Speech
 
-> This is personal notes from the book "Speech and Language Processing" by Daniel Jurafsky & James H. Martin. `chapter 16` by Ahmed Haythm. I am not responsible for any mistakes in this note. I am just a human who is trying to learn. If you are reading this and found something wrong, please contact me to fix it.
+> These are my personal study notes on ``Chapter 16`` of the book ``“Speech and Language Processing” authored by Daniel Jurafsky & James H. Martin``. The notes were compiled by me, Ahmed Haytham. As a learner, I acknowledge that there may be inadvertent errors in these notes. If you come across any inaccuracies, I would appreciate your feedback to correct them.
 ---
 # Table of Contents
 - [Introduction](#Introduction)
@@ -367,3 +367,74 @@ that the wave repeats regularly.`
 ---
 
 # Text-to-Speech `TTS`
+<a id="Text-to-Speech-`TTS`"></a>
+- **1. Objective:** The goal of Text-to-Speech (TTS) systems is to **map from strings of letters to waveforms.** This technology is important for various applications including dialogue systems, games, and education.
+- **2- Method:** TTS systems, like ASR systems, are generally based on the encoder-decoder architecture, using either **LSTMs or Transformers.**
+- **3. Training:** 
+    - ASR systems are trained to be speaker-independent, using large corpora with thousands of hours of speech from many speakers to generalize well to an unseen test speaker.
+    - By contrast, basic TTS systems are **speaker-dependent**, trained to have a consistent voice using much less data, but all from one speaker.
+- **4. TTS Task Components:**
+    1. The first component is an encoder-decoder model for spectrogram prediction, mapping **from strings** of letters to **mel spectrographs**, sequences of mel spectral values over time.
+    2. The second component, called a vocoder, maps from **mel spectrograms** to waveforms. The process of generating waveforms from intermediate representations like spectrograms is called **vocoding.**<br>![alt text](image-25.png)<br>
+    > ``Standard encoder-decoder algorithms for TTS are computationally intensive, so modern research is focused on ways to speed them up.``
+
+---
+# TTS Preprocessing: Text normalization
+> - **Modern TTS Systems:** They can learn to do some normalization themselves, but they are only trained on a limited amount of data, so a separate normalization step is important
+- **1. Text Normalization Preprocessing:** TTS systems require text normalization preprocessing for handling non-standard words such as numbers, monetary amounts, dates, and other concepts that are verbalized differently than they are spelled.
+- **2. Verbalization of Numbers:** A TTS system needs to know how to verbalize numbers based on context. For example, the number 151 should be verbalized as “one hundred fifty-one” if it occurs as $151 but as “one fifty one” if it occurs in the context “151 Chapultepec Ave.”.
+- **3. Verbalization of Non-Standard Words:** Often the verbalization of a non-standard word depends on its meaning (what Taylor (2009) calls its semiotic class). Many classes have preferred realizations. For example, a year is generally read as paired digits (e.g., “seventeen fifty” for 1750). “$3.2 billion” must be read out with the word “dollars” at the end, as “three point two billion dollars”.
+- **4. Language-Specific Normalization:** In languages with grammatical gender, normalization may depend on morphological properties. For example, in French, the phrase “1 mangue” is normalized to “une mangue”, but “1 ananas” is normalized to “un ananas”. In German, “Heinrich IV” can be normalized to “Heinrich der Vierte”, “Heinrich des Vierten”, “Heinrich dem Vierten”, or “Heinrich den Vierten” depending on the grammatical case of the noun.
+- 4- **Normalization:** It can be done by rule or by an encoder-decoder model.
+    - **Rule-based Normalization:** It is done in two stages: tokenization and verbalization. In the tokenization stage, rules are written to detect non-standard words. A second pass of rules express how to verbalize each semiotic class. 
+    - **Encoder-Decoder Models:** They have been shown to work better than rules for such transduction tasks, but do require expert-labeled training sets in which non-standard words have been replaced with the appropriate verbalization. In the simplest encoder-decoder setting, the problem is treated like **machine translation**
+``In summary, text normalization is an important preprocessing step for TTS systems. It involves verbalizing non-standard words such as numbers, monetary amounts, and dates. This can be done by rule or by an encoder-decoder model. 📝🔤``
+-- End of TTS Preprocessing: Text normalization --
+---
+# TTS: Spectrogram prediction
+- **1.Architecture:** The same architecture described for **ASR—the encoder-decoder** with attention—can be used for the first component of TTS.
+> The **Tacotron2** architecture, which extends the earlier Tacotron architecture and the Wavenet vocoder, is used as an example.
+- **2.Encoder:** The encoder’s job is to take a sequence of letters and produce a **hidden representation representing the letter sequence**, which is then used by the attention mechanism in the decoder. The Tacotron2 encoder first maps every input grapheme to a 512-dimensional character embedding. These are then passed through a stack of 3 convolutional layers, each containing 512 filters with shape 5 × 1, i.e., each filter spanning 5 characters, to model the larger letter context. The output of the final convolutional layer is passed through a **biLSTM** to produce the final encoding.
+- **3.Attention Mechanism:** It’s common to use a slightly higher quality (but slower) version of attention called **location-based attention**, in which the computation of the α values makes use of the α values from the prior time-state.
+- **4. Decoder:** In the decoder, the predicted **mel spectrum** from the prior time slot is passed through a small pre-net as a **bottleneck**. This prior output is then concatenated with the **encoder’s attention vector context** and passed through **2 LSTM** layers. The output of this LSTM is used in two ways. 
+    - ***First***, it is passed through a linear layer, and some output processing, to autoregressively predict one 80-dimensional log-mel filterbank vector frame (50 ms, with a 12.5 ms stride) at each step. 
+    - ***Second***, it is passed through another linear layer to a sigmoid to make a “stop token prediction” decision about whether to stop producing output.
+<br>![alt text](image-26.png)<br>
+
+- **5. Training:** The system is trained on gold log-mel filterbank features, using teacher forcing, that is the decoder is fed the correct log-model spectral feature at each decoder step instead of the predicted decoder output from the prior step.
+
+-- End of TTS: Spectrogram prediction --
+
+---
+# TTS: Vocoder
+- **1. Objective:** The goal of the vocoder is to map from the mel spectrogram to the waveform.``The goal of the vocoding process is to invert a log mel spectrum representations back into a time-domain waveform representation.``
+- **2. Vocoder Architecture:** The **WaveNet**.
+It is an autoregressive network that takes spectrograms as input and produces audio output represented as sequences of 8-bit mu-law. The probability of a waveform, a sequence of 8-bit mu-law values Y = y1,…, yt, given an intermediate input mel spectrogram h is computed as.<br>![alt text](image-27.png)<br>
+- **3. Dilated Convolutions:** This probability distribution is modeled by a stack of special convolution layers, which include a specific convolutional structure called dilated convolutions, and a specific non-linearity function. A dilated convolution is a subtype of causal convolutional layer. In dilated convolutions, at each successive layer, the convolutional filter is applied over a span longer than its length by skipping input values.<br>![alt text](image-28.png)<br>
+- **4. Tacotron 2 Synthesizer:** It uses 12 convolutional layers in two cycles with a dilation cycle size of 6, meaning that the first 6 layers have dilations of 1, 2, 4, 8, 16, and 32, and the next 6 layers again have dilations of 1, 2, 4, 8, 16, and 32. Dilated convolutions allow the vocoder to grow the receptive field exponentially with depth.
+
+- **5. WaveNet Predictions:** WaveNet predicts mu-law audio samples. This means that we can predict the value of each sample with a simple 256-way categorical classifier. The output of the dilated convolutions is thus passed through a softmax which makes this 256-way decision.
+
+- **6. Training:** The spectrogram prediction encoder-decoder and the WaveNet vocoder are trained separately. After the spectrogram predictor is trained, the spectrogram prediction network is run in teacher-forcing mode, with each predicted spectral frame conditioned on the encoded text input and the previous frame from the ground truth spectrogram. This sequence of ground truth-aligned spectral features and gold audio output is then used to train the vocoder.
+
+-- End of TTS: Vocoder --
+
+---
+# TTS: Evaluation
+- **1. Evaluation of TTS:** Speech synthesis systems are evaluated by human listeners. The development of a good automatic metric for synthesis evaluation, one that would eliminate the need for expensive and time-consuming human listening experiments, remains an open research topic.
+- **2. Mean Opinion Score (MOS):** The quality of synthesized utterances is evaluated by playing a sentence to listeners and asking them to give a mean opinion score (MOS), a rating of how good the synthesized utterances are, usually on a scale from 1–5. Systems can be compared by comparing their MOS scores on the same sentences.
+- **3.AB Tests:** If we are comparing exactly two systems, we can use AB tests. In AB tests, the same sentence synthesized by two different systems (an A and a B system) is played. The human listeners choose which of the two utterances they like better. This is done for a number of sentences (presented in random order) and the number of sentences preferred for each system is compared.
+-- End of TTS: Evaluation --
+---
+# Other Speech Tasks:
+1. **Wake Word Detection:** The task of detecting a word or short phrase, usually to wake up a voice-enabled assistant like Alexa, Siri, or the Google Assistant. The goal is to build the detection into small devices at the computing edge to maintain privacy. Wake word detectors need to be fast, small footprint software that can fit into embedded devices. They usually ** use the same frontend feature extraction as ASR, often followed by a whole-word classifier.**
+2. **Speaker Diarization:** The task of determining ``who spoke when`` in a long multi-speaker audio recording. This can be useful for ``transcribing meetings``, ``classroom speech``, or ``medical interactions``. **Diarization** systems often use voice activity detection (VAD) to find segments of continuous speech, extract speaker embedding vectors, and cluster the vectors to group together segments likely from the same speaker. More recent work is investigating end-to-end algorithms to map directly from input speech to a sequence of speaker labels for each frame.
+4. **Speaker Recognition:** The task of identifying a speaker. We generally distinguish the subtasks of **speaker verification**, where we make a binary decision (is this speaker X or not?), such as for security when accessing personal information over the telephone, and speaker identification, where we make a one of N decision trying to match a speaker’s voice against a database of many speakers.
+5. **Language Identification:** These tasks are related to language identification, in which we are given a wavefile and must identify which language is being spoken. This is useful, for example, for automatically directing callers to human operators that speak appropriate languages.
+---
+# Conclusion
+<a id="Conclusion"></a>
+![alt text](image-29.png)
+---
+> Dear Reader, I hope you have enjoyed this notes, summary, and arrnge of the content in tree based 
+
